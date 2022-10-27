@@ -229,3 +229,22 @@ func (vec *BitVec) State(index uint64) (uint64, error) {
 
 	return value, nil
 }
+
+// GetIndexes is a method of BitVec that returns the slice of indexes matching the given state.
+// Returns an error if the index is out of bounds.
+func (vec *BitVec) GetIndexes(state uint64) ([]uint64, error) {
+	indexes := make([]uint64, 0)
+
+	//Iterating over the BitVec to check for the state value
+	for i := uint64(0); i < vec.Count; i++ {
+		temp, err := vec.Has(i, state)
+		if err != nil {
+			return nil, err
+		}
+		if temp == true {
+			indexes = append(indexes, i)
+		}
+	}
+
+	return indexes, nil
+}

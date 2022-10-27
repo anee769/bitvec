@@ -216,3 +216,32 @@ func TestBitVec_State(t *testing.T) {
 		assert.Equal(t, test.output, value)
 	}
 }
+
+func TestBitVec_GetIndexes(t *testing.T) {
+	tests := []struct {
+		count, size, state uint64
+		data, output       []uint64
+	}{
+		{32, 2, 3, []uint64{3027}, []uint64{27, 28, 31}},
+		{16, 4, 1, []uint64{11297799}, []uint64{}},
+		{10, 64, 0, []uint64{4, 12000, 0, 36510, 1000, 0, 111, 0, 0, 0}, []uint64{2, 5, 7, 8, 9}},
+		{8, 10, 17, []uint64{369099440, 4785074604081152}, []uint64{7}},
+		{42, 3, 21, []uint64{81, 9223372036854777604}, nil},
+	}
+
+	for _, test := range tests {
+		vec, err := NewBitVec(test.count, test.size)
+		assert.Nil(t, err, "Unexpected Error")
+
+		vec.Data = test.data
+		indexes, err2 := vec.GetIndexes(test.state)
+		if err2 != nil {
+			if test.state > vec.MaxState() {
+				assert.EqualError(t, err2, fmt.Sprintf("state too large for BitVec state (maxL %v)", vec.MaxState()))
+			} else {
+				assert.Nil(t, err2, "Unexpected Error")
+			}
+		}
+		assert.Equal(t, test.output, indexes)
+	}
+}
