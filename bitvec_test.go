@@ -38,11 +38,11 @@ func TestNewBitVec(t *testing.T) {
 	for _, test := range tests {
 		vec, err := NewBitVec(test.count, test.size)
 		if test.size > MAXVECSIZE {
-			assert.EqualError(t, err, "state size greater 64 not allowed")
+			assert.EqualError(t, err, "state Size greater 64 not allowed")
 			assert.Nil(t, vec)
 		} else {
 			assert.Nil(t, err, "Unexpected Error")
-			assert.Equal(t, test.output, vec.data)
+			assert.Equal(t, test.output, vec.Data)
 		}
 	}
 
@@ -64,7 +64,7 @@ func TestBitVec_String(t *testing.T) {
 		vec, err := NewBitVec(test.count, test.size)
 		assert.Nil(t, err, "Unexpected Error")
 
-		vec.data = test.data
+		vec.Data = test.data
 		assert.Equal(t, test.output, fmt.Sprint(vec))
 	}
 }
@@ -94,7 +94,7 @@ func TestBitVec_Set(t *testing.T) {
 			err := vec.Set(test.index[i], test.state[i])
 			if err != nil {
 				if test.index[i] >= test.count {
-					assert.EqualError(t, err, fmt.Sprintf("index too large for BitVec count (max: %v)", test.count))
+					assert.EqualError(t, err, fmt.Sprintf("index too large for BitVec Count (max: %v)", test.count))
 				} else if test.state[i] > vec.MaxState() {
 					assert.EqualError(t, err, fmt.Sprintf("state too large for BitVec state (maxL %v)", vec.MaxState()))
 				} else {
@@ -104,7 +104,7 @@ func TestBitVec_Set(t *testing.T) {
 
 		}
 
-		assert.Equal(t, test.output, vec.data)
+		assert.Equal(t, test.output, vec.Data)
 	}
 
 }
@@ -129,16 +129,16 @@ func TestBitVec_Unset(t *testing.T) {
 		vec, err := NewBitVec(test.count, test.size)
 		assert.Nil(t, err, "Unexpected Error")
 
-		vec.data = test.data
+		vec.Data = test.data
 		err = vec.Unset(test.index)
 		if err != nil {
 			if test.index >= test.count {
-				assert.EqualError(t, err, fmt.Sprintf("index too large for BitVec count (max: %v)", test.count))
+				assert.EqualError(t, err, fmt.Sprintf("index too large for BitVec Count (max: %v)", test.count))
 			} else {
 				assert.Nil(t, err, "Unexpected Error")
 			}
 		}
-		assert.Equal(t, test.output, vec.data)
+		assert.Equal(t, test.output, vec.Data)
 	}
 }
 
@@ -166,11 +166,11 @@ func TestBitVec_Has(t *testing.T) {
 		vec, err := NewBitVec(test.count, test.size)
 		assert.Nil(t, err, "Unexpected Error")
 
-		vec.data = test.data
+		vec.Data = test.data
 		check, err2 := vec.Has(test.index, test.state)
 		if err2 != nil {
 			if test.index >= test.count {
-				assert.EqualError(t, err2, fmt.Sprintf("index too large for BitVec count (max: %v)", test.count))
+				assert.EqualError(t, err2, fmt.Sprintf("index too large for BitVec Count (max: %v)", test.count))
 			} else if test.state > vec.MaxState() {
 				assert.EqualError(t, err2, fmt.Sprintf("state too large for BitVec state (maxL %v)", vec.MaxState()))
 			} else {
@@ -204,11 +204,11 @@ func TestBitVec_State(t *testing.T) {
 		vec, err := NewBitVec(test.count, test.size)
 		assert.Nil(t, err, "Unexpected Error")
 
-		vec.data = test.data
+		vec.Data = test.data
 		value, err2 := vec.State(test.index)
 		if err2 != nil {
 			if test.index >= test.count {
-				assert.EqualError(t, err2, fmt.Sprintf("index too large for BitVec count (max: %v)", test.count))
+				assert.EqualError(t, err2, fmt.Sprintf("index too large for BitVec Count (max: %v)", test.count))
 			} else {
 				assert.Nil(t, err2, "Unexpected Error")
 			}

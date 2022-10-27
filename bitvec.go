@@ -3,55 +3,62 @@ package bitvec
 import (
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/pkg/errors"
 )
 
-// MAXVECSIZE is the maximum allowed size for a BitVec state.
-// The size represents the number of bits consumed for a response state
+// MAXVECSIZE is the maximum allowed Size for a BitVec state.
+// The Size represents the number of bits consumed for a response state
 const MAXVECSIZE = 64
 
 // BitVec is a struct that maintains some number of responses
 type BitVec struct {
-	// count is the number of responses
-	count uint64
-	// size is the number of bits required for a response
-	size uint64
-	// data stores the responses according to their indices
-	data []uint64
+	// Count is the number of responses
+	Count uint64
+	// Size is the number of bits required for a response
+	Size uint64
+	// Data stores the responses according to their indices
+	Data []uint64
+	// mu is the thread safety mutex
+	mu sync.Mutex
 }
 
 // String implements the Stringer interface for BitVec
 func (vec *BitVec) String() string {
-	return fmt.Sprintf("[%v|%v] %064b", vec.count, vec.size, vec.data)
+	return fmt.Sprintf("[%v|%v] %064b", vec.Count, vec.Size, vec.Data)
 }
 
 // NewBitVec is a constructor function for BitVec.
-// Returns an error if size is greater than MAXVECSIZE
+// Returns an error if Size is greater than MAXVECSIZE
 func NewBitVec(count, size uint64) (*BitVec, error) {
-	// Check if given size is under MAXVECSIZE
+	// Check if given Size is under MAXVECSIZE
 	if size > MAXVECSIZE {
-		return nil, errors.New("state size greater 64 not allowed")
+		return nil, errors.New("state Size greater 64 not allowed")
 	}
 
 	return &BitVec{
-		count: count, size: size,
-		data: make([]uint64, int(math.Ceil(float64(count*size)/64))),
+		Count: count, Size: size,
+		Data: make([]uint64, int(math.Ceil(float64(count*size)/64))), mu: sync.Mutex{},
 	}, nil
 }
 
 // MaxState is a method of BitVec that returns the maximum value for a state for that BitVec.
 // It is calculated as 2^StateBits-1.
 func (vec *BitVec) MaxState() uint64 {
-	return 1<<vec.size - 1
+	return 1<<vec.Size - 1
 }
 
 // Set is a method of BitVec that sets a given state at given index.
 // Returns an error if the index is out of bounds or if the state value exceeds the maximum for the BitVec.
 func (vec *BitVec) Set(index, state uint64) error {
+	// Acquire the mutex
+	vec.mu.Lock()
+	defer vec.mu.Unlock()
+
 	// Check for out of bounds index
-	if index >= vec.count {
-		return errors.Errorf("index too large for BitVec count (max: %v)", vec.count)
+	if index >= vec.Count {
+		return errors.Errorf("index too large for BitVec Count (max: %v)", vec.Count)
 	}
 
 	// Check for state value too large for BitVec
@@ -59,29 +66,29 @@ func (vec *BitVec) Set(index, state uint64) error {
 		return errors.Errorf("state too large for BitVec state (maxL %v)", vec.MaxState())
 	}
 
-	// Get the start and end positions for the response state in the data
-	start := (index * vec.size) / 64
-	end := (((index + 1) * vec.size) - 1) / 64
+	// Get the start and end positions for the response state in the Data
+	start := (index * vec.Size) / 64
+	end := (((index + 1) * vec.Size) - 1) / 64
 
 	// Calculate the start and end bit positions
-	startBit := (index * vec.size) % 64
-	endBit := (((index + 1) * vec.size) - 1) % 64
+	startBit := (index * vec.Size) % 64
+	endBit := (((index + 1) * vec.Size) - 1) % 64
 
-	// If the response is contained within a single uint64 in data
+	// If the response is contained within a single uint64 in Data
 	if start == end {
-		temp := state << (64 - vec.size - startBit)
-		vec.data[start] |= temp
+		temp := state << (64 - vec.Size - startBit)
+		vec.Data[start] |= temp
 
 	} else {
 		// Calculate new values for both affected positions.
 		// NOTE: This logic fails for a response that spans beyond 2 uint64.
 		// This is regulated by MAXVECSIZE.
 
-		startTemp := state >> (vec.size - 64 + startBit)
+		startTemp := state >> (vec.Size - 64 + startBit)
 		endTemp := state << (64 - endBit - 1)
 
-		vec.data[start] |= startTemp
-		vec.data[end] |= endTemp
+		vec.Data[start] |= startTemp
+		vec.Data[end] |= endTemp
 	}
 
 	return nil
@@ -90,25 +97,29 @@ func (vec *BitVec) Set(index, state uint64) error {
 // Unset is a method of BitVec that unsets the state for a given index.
 // Returns an error index is out of bounds.
 func (vec *BitVec) Unset(index uint64) error {
+	// Acquire the mutex
+	vec.mu.Lock()
+	defer vec.mu.Unlock()
+
 	// Check for out of bounds index
-	if index >= vec.count {
-		return errors.Errorf("index too large for BitVec count (max: %v)", vec.count)
+	if index >= vec.Count {
+		return errors.Errorf("index too large for BitVec Count (max: %v)", vec.Count)
 	}
 
-	// Get the start and end positions for the response state in the data
-	start := (index * vec.size) / 64
-	end := (((index + 1) * vec.size) - 1) / 64
+	// Get the start and end positions for the response state in the Data
+	start := (index * vec.Size) / 64
+	end := (((index + 1) * vec.Size) - 1) / 64
 
 	// Calculate the start and end bit positions
-	startBit := (index * vec.size) % 64
-	endBit := (((index + 1) * vec.size) - 1) % 64
+	startBit := (index * vec.Size) % 64
+	endBit := (((index + 1) * vec.Size) - 1) % 64
 
-	// If the response is contained within a single uint64 in data
+	// If the response is contained within a single uint64 in Data
 	if start == end {
-		temp := vec.MaxState() << (64 - vec.size - startBit)
+		temp := vec.MaxState() << (64 - vec.Size - startBit)
 		temp ^= 1<<64 - 1
 
-		vec.data[start] &= temp
+		vec.Data[start] &= temp
 
 	} else {
 		// Calculate new values for both affected positions.
@@ -119,8 +130,8 @@ func (vec *BitVec) Unset(index uint64) error {
 		startTemp := max << (64 - startBit)
 		endTemp := max >> (endBit + 1)
 
-		vec.data[start] &= startTemp
-		vec.data[end] &= endTemp
+		vec.Data[start] &= startTemp
+		vec.Data[end] &= endTemp
 	}
 
 	return nil
@@ -130,8 +141,8 @@ func (vec *BitVec) Unset(index uint64) error {
 // Returns an error if the index is out of bounds or if the state value exceeds the maximum for the BitVec.
 func (vec *BitVec) Has(index, state uint64) (bool, error) {
 	// Check for out of bounds index
-	if index >= vec.count {
-		return false, errors.Errorf("index too large for BitVec count (max: %v)", vec.count)
+	if index >= vec.Count {
+		return false, errors.Errorf("index too large for BitVec Count (max: %v)", vec.Count)
 	}
 
 	// Check for state value too large for BitVec
@@ -139,34 +150,34 @@ func (vec *BitVec) Has(index, state uint64) (bool, error) {
 		return false, errors.Errorf("state too large for BitVec state (maxL %v)", vec.MaxState())
 	}
 
-	// Get the start and end positions for the response state in the data
-	start := (index * vec.size) / 64
-	end := (((index + 1) * vec.size) - 1) / 64
+	// Get the start and end positions for the response state in the Data
+	start := (index * vec.Size) / 64
+	end := (((index + 1) * vec.Size) - 1) / 64
 
 	// Calculate the start and end bit positions
-	startBit := (index * vec.size) % 64
-	endBit := (((index + 1) * vec.size) - 1) % 64
+	startBit := (index * vec.Size) % 64
+	endBit := (((index + 1) * vec.Size) - 1) % 64
 
 	var value uint64
 	max := vec.MaxState()
 
-	// If the response is contained within a single uint64 in data
+	// If the response is contained within a single uint64 in Data
 	if start == end {
-		temp := max << (64 - vec.size - startBit)
-		value = temp & vec.data[start]
-		value >>= 64 - vec.size - startBit
+		temp := max << (64 - vec.Size - startBit)
+		value = temp & vec.Data[start]
+		value >>= 64 - vec.Size - startBit
 
 	} else {
 		// Calculate new values for both affected positions.
 		// NOTE: This logic fails for a response that spans beyond 2 uint64.
 		// This is regulated by MAXVECSIZE.
 
-		temp := max >> (vec.size - 64 + startBit)
-		value = temp & vec.data[start]
-		value <<= vec.size - 64 + startBit
+		temp := max >> (vec.Size - 64 + startBit)
+		value = temp & vec.Data[start]
+		value <<= vec.Size - 64 + startBit
 
 		temp = max << (64 - endBit - 1)
-		value2 := temp & vec.data[end]
+		value2 := temp & vec.Data[end]
 		value2 >>= 64 - endBit - 1
 
 		value |= value2
@@ -179,38 +190,38 @@ func (vec *BitVec) Has(index, state uint64) (bool, error) {
 // Returns an error if the index is out of bounds.
 func (vec *BitVec) State(index uint64) (uint64, error) {
 	// Check for out of bounds index
-	if index >= vec.count {
-		return 0, errors.Errorf("index too large for BitVec count (max: %v)", vec.count)
+	if index >= vec.Count {
+		return 0, errors.Errorf("index too large for BitVec Count (max: %v)", vec.Count)
 	}
 
-	// Get the start and end positions for the response state in the data
-	start := (index * vec.size) / 64
-	end := (((index + 1) * vec.size) - 1) / 64
+	// Get the start and end positions for the response state in the Data
+	start := (index * vec.Size) / 64
+	end := (((index + 1) * vec.Size) - 1) / 64
 
 	// Calculate the start and end bit positions
-	startBit := (index * vec.size) % 64
-	endBit := (((index + 1) * vec.size) - 1) % 64
+	startBit := (index * vec.Size) % 64
+	endBit := (((index + 1) * vec.Size) - 1) % 64
 
 	var value uint64
 	max := vec.MaxState()
 
-	// If the response is contained within a single uint64 in data
+	// If the response is contained within a single uint64 in Data
 	if start == end {
-		temp := max << (64 - vec.size - startBit)
-		value = temp & vec.data[start]
-		value >>= 64 - vec.size - startBit
+		temp := max << (64 - vec.Size - startBit)
+		value = temp & vec.Data[start]
+		value >>= 64 - vec.Size - startBit
 
 	} else {
 		// Calculate new values for both affected positions.
 		// NOTE: This logic fails for a response that spans beyond 2 uint64.
 		// This is regulated by MAXVECSIZE.
 
-		temp := max >> (vec.size - 64 + startBit)
-		value = temp & vec.data[start]
-		value <<= vec.size - 64 + startBit
+		temp := max >> (vec.Size - 64 + startBit)
+		value = temp & vec.Data[start]
+		value <<= vec.Size - 64 + startBit
 
 		temp = max << (64 - endBit - 1)
-		value2 := temp & vec.data[end]
+		value2 := temp & vec.Data[end]
 		value2 >>= 64 - endBit - 1
 
 		value |= value2
