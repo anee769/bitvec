@@ -19,7 +19,7 @@ func TestDiBit_String(t *testing.T) {
 
 	for _, test := range tests {
 		vec := NewDiBit(test.count)
-		vec.data = test.data
+		vec.Data = test.data
 
 		assert.Equal(t, test.output, fmt.Sprint(vec))
 	}
@@ -46,7 +46,7 @@ func TestDiBit_Set(t *testing.T) {
 			err := vec.Set(test.index[i], test.state[i])
 			if err != nil {
 				if test.index[i] >= test.count {
-					assert.EqualError(t, err, fmt.Sprintf("index too large for DiBit count (max: %v)", test.count))
+					assert.EqualError(t, err, fmt.Sprintf("index too large for DiBit Count (max: %v)", test.count))
 				} else if test.state[i] > vec.MaxState() {
 					assert.EqualError(t, err, fmt.Sprintf("state too large for DiBit state (maxL %v)", vec.MaxState()))
 				} else {
@@ -56,7 +56,7 @@ func TestDiBit_Set(t *testing.T) {
 
 		}
 
-		assert.Equal(t, test.output, vec.data)
+		assert.Equal(t, test.output, vec.Data)
 	}
 
 }
@@ -77,16 +77,16 @@ func TestDiBit_Unset(t *testing.T) {
 
 	for _, test := range tests {
 		vec := NewDiBit(test.count)
-		vec.data = test.data
+		vec.Data = test.data
 		err := vec.Unset(test.index)
 		if err != nil {
 			if test.index >= test.count {
-				assert.EqualError(t, err, fmt.Sprintf("index too large for DiBit count (max: %v)", test.count))
+				assert.EqualError(t, err, fmt.Sprintf("index too large for DiBit Count (max: %v)", test.count))
 			} else {
 				assert.Nil(t, err, "Unexpected Error")
 			}
 		}
-		assert.Equal(t, test.output, vec.data)
+		assert.Equal(t, test.output, vec.Data)
 	}
 }
 
@@ -107,11 +107,11 @@ func TestDiBit_Has(t *testing.T) {
 
 	for _, test := range tests {
 		vec := NewDiBit(test.count)
-		vec.data = test.data
+		vec.Data = test.data
 		check, err := vec.Has(test.index, test.state)
 		if err != nil {
 			if test.index >= test.count {
-				assert.EqualError(t, err, fmt.Sprintf("index too large for DiBit count (max: %v)", test.count))
+				assert.EqualError(t, err, fmt.Sprintf("index too large for DiBit Count (max: %v)", test.count))
 			} else if test.state > vec.MaxState() {
 				assert.EqualError(t, err, fmt.Sprintf("state too large for DiBit state (maxL %v)", vec.MaxState()))
 			} else {
@@ -140,11 +140,11 @@ func TestDiBit_State(t *testing.T) {
 
 	for _, test := range tests {
 		vec := NewDiBit(test.count)
-		vec.data = test.data
+		vec.Data = test.data
 		value, err := vec.State(test.index)
 		if err != nil {
 			if test.index >= test.count {
-				assert.EqualError(t, err, fmt.Sprintf("index too large for DiBit count (max: %v)", test.count))
+				assert.EqualError(t, err, fmt.Sprintf("index too large for DiBit Count (max: %v)", test.count))
 			} else {
 				assert.Nil(t, err, "Unexpected Error")
 			}

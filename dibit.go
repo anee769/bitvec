@@ -3,6 +3,7 @@ package bitvec
 import (
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/pkg/errors"
 )
@@ -14,22 +15,25 @@ const (
 
 // DiBit is a struct that maintains some number of responses
 type DiBit struct {
-	// count is the number of responses
-	count uint64
-	// data stores the responses according to their indices
-	data []uint64
+	// Count is the number of responses
+	Count uint64
+	// Data stores the responses according to their indices
+	Data []uint64
+	// mu is the thread safety mutex
+	mu sync.Mutex
 }
 
 // String implements the Stringer interface for BitVec
 func (vec *DiBit) String() string {
-	return fmt.Sprintf("[%v] %064b", vec.count, vec.data)
+	return fmt.Sprintf("[%v] %064b", vec.Count, vec.Data)
 }
 
 // NewDiBit is a constructor function for DiBit.
 func NewDiBit(count uint64) *DiBit {
 	return &DiBit{
-		count: count,
-		data:  make([]uint64, int(math.Ceil(float64(count*STATESIZE)/64))),
+		Count: count,
+		Data:  make([]uint64, int(math.Ceil(float64(count*STATESIZE)/64))),
+		mu:    sync.Mutex{},
 	}
 }
 
@@ -42,9 +46,13 @@ func (vec *DiBit) MaxState() uint64 {
 // Set is a method of DiBit that sets a given state at given index.
 // Returns an error if the index is out of bounds or if the state value exceeds the maximum for the DiBit.
 func (vec *DiBit) Set(index, state uint64) error {
+	// Acquire the mutex
+	vec.mu.Lock()
+	defer vec.mu.Unlock()
+
 	// Check for out of bounds index
-	if index >= vec.count {
-		return errors.Errorf("index too large for DiBit count (max: %v)", vec.count)
+	if index >= vec.Count {
+		return errors.Errorf("index too large for DiBit Count (max: %v)", vec.Count)
 	}
 
 	// Check for state value too large for BitVec
@@ -52,14 +60,14 @@ func (vec *DiBit) Set(index, state uint64) error {
 		return errors.Errorf("state too large for DiBit state (maxL %v)", vec.MaxState())
 	}
 
-	// Get the start position for the response state in the data
+	// Get the start position for the response state in the Data
 	start := (index * STATESIZE) / 64
 
 	// Calculate the start bit position
 	startBit := (index * STATESIZE) % 64
 
 	temp := state << (64 - STATESIZE - startBit)
-	vec.data[start] |= temp
+	vec.Data[start] |= temp
 
 	return nil
 }
@@ -67,12 +75,16 @@ func (vec *DiBit) Set(index, state uint64) error {
 // Unset is a method of DiBit that unsets the state for a given index.
 // Returns an error index is out of bounds.
 func (vec *DiBit) Unset(index uint64) error {
+	// Acquire the mutex
+	vec.mu.Lock()
+	defer vec.mu.Unlock()
+
 	// Check for out of bounds index
-	if index >= vec.count {
-		return errors.Errorf("index too large for DiBit count (max: %v)", vec.count)
+	if index >= vec.Count {
+		return errors.Errorf("index too large for DiBit Count (max: %v)", vec.Count)
 	}
 
-	// Get the start position for the response state in the data
+	// Get the start position for the response state in the Data
 	start := (index * STATESIZE) / 64
 
 	// Calculate the start bit position
@@ -81,7 +93,7 @@ func (vec *DiBit) Unset(index uint64) error {
 	max := uint64(1<<64 - 1)
 	temp := vec.MaxState() << (64 - STATESIZE - startBit)
 	temp ^= max
-	vec.data[start] &= temp
+	vec.Data[start] &= temp
 
 	return nil
 }
@@ -90,8 +102,8 @@ func (vec *DiBit) Unset(index uint64) error {
 // Returns an error if the index is out of bounds or if the state value exceeds the maximum for the DiBit.
 func (vec *DiBit) Has(index, state uint64) (bool, error) {
 	// Check for out of bounds index
-	if index >= vec.count {
-		return false, errors.Errorf("index too large for DiBit count (max: %v)", vec.count)
+	if index >= vec.Count {
+		return false, errors.Errorf("index too large for DiBit Count (max: %v)", vec.Count)
 	}
 
 	// Check for state value too large for BitVec
@@ -99,7 +111,7 @@ func (vec *DiBit) Has(index, state uint64) (bool, error) {
 		return false, errors.Errorf("state too large for DiBit state (maxL %v)", vec.MaxState())
 	}
 
-	// Get the start position for the response state in the data
+	// Get the start position for the response state in the Data
 	start := (index * STATESIZE) / 64
 
 	// Calculate the start bit position
@@ -108,7 +120,7 @@ func (vec *DiBit) Has(index, state uint64) (bool, error) {
 	var value uint64
 
 	temp := vec.MaxState() << (64 - STATESIZE - startBit)
-	value = temp & vec.data[start]
+	value = temp & vec.Data[start]
 	value >>= 64 - STATESIZE - startBit
 
 	return value == state, nil
@@ -118,11 +130,11 @@ func (vec *DiBit) Has(index, state uint64) (bool, error) {
 // Returns an error if the index is out of bounds.
 func (vec *DiBit) State(index uint64) (uint64, error) {
 	// Check for out of bounds index
-	if index >= vec.count {
-		return 0, errors.Errorf("index too large for DiBit count (max: %v)", vec.count)
+	if index >= vec.Count {
+		return 0, errors.Errorf("index too large for DiBit Count (max: %v)", vec.Count)
 	}
 
-	// Get the start position for the response state in the data
+	// Get the start position for the response state in the Data
 	start := (index * STATESIZE) / 64
 
 	// Calculate the start bit position
@@ -131,7 +143,7 @@ func (vec *DiBit) State(index uint64) (uint64, error) {
 	var value uint64
 
 	temp := vec.MaxState() << (64 - STATESIZE - startBit)
-	value = temp & vec.data[start]
+	value = temp & vec.Data[start]
 	value >>= 64 - STATESIZE - startBit
 
 	return value, nil
