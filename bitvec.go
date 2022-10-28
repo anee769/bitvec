@@ -14,19 +14,15 @@ const MAXVECSIZE = 64
 
 // BitVec is a struct that maintains some number of responses
 type BitVec struct {
+	// mu is the thread safety mutex
+	mu sync.Mutex
+
 	// Count is the number of responses
 	Count uint64
 	// Size is the number of bits required for a response
 	Size uint64
 	// Data stores the responses according to their indices
 	Data []uint64
-	// mu is the thread safety mutex
-	mu sync.Mutex
-}
-
-// String implements the Stringer interface for BitVec
-func (vec *BitVec) String() string {
-	return fmt.Sprintf("[%v|%v] %064b", vec.Count, vec.Size, vec.Data)
 }
 
 // NewBitVec is a constructor function for BitVec.
@@ -34,13 +30,18 @@ func (vec *BitVec) String() string {
 func NewBitVec(count, size uint64) (*BitVec, error) {
 	// Check if given Size is under MAXVECSIZE
 	if size > MAXVECSIZE {
-		return nil, errors.New("state Size greater 64 not allowed")
+		return nil, errors.New("state size greater 64 not allowed")
 	}
 
 	return &BitVec{
-		Count: count, Size: size,
-		Data: make([]uint64, int(math.Ceil(float64(count*size)/64))), mu: sync.Mutex{},
+		mu: sync.Mutex{}, Count: count, Size: size,
+		Data: make([]uint64, int(math.Ceil(float64(count*size)/64))),
 	}, nil
+}
+
+// String implements the Stringer interface for BitVec
+func (vec *BitVec) String() string {
+	return fmt.Sprintf("[%v|%v] %064b", vec.Count, vec.Size, vec.Data)
 }
 
 // MaxState is a method of BitVec that returns the maximum value for a state for that BitVec.
@@ -52,19 +53,19 @@ func (vec *BitVec) MaxState() uint64 {
 // Set is a method of BitVec that sets a given state at given index.
 // Returns an error if the index is out of bounds or if the state value exceeds the maximum for the BitVec.
 func (vec *BitVec) Set(index, state uint64) error {
-	// Acquire the mutex
-	vec.mu.Lock()
-	defer vec.mu.Unlock()
-
 	// Check for out of bounds index
 	if index >= vec.Count {
-		return errors.Errorf("index too large for BitVec Count (max: %v)", vec.Count)
+		return errors.Errorf("index too large for bitvec count (max: %v)", vec.Count)
 	}
 
 	// Check for state value too large for BitVec
 	if state > vec.MaxState() {
-		return errors.Errorf("state too large for BitVec state (maxL %v)", vec.MaxState())
+		return errors.Errorf("state too large for bitvec state (max: %v)", vec.MaxState())
 	}
+
+	// Acquire the mutex
+	vec.mu.Lock()
+	defer vec.mu.Unlock()
 
 	// Get the start and end positions for the response state in the Data
 	start := (index * vec.Size) / 64
@@ -97,14 +98,14 @@ func (vec *BitVec) Set(index, state uint64) error {
 // Unset is a method of BitVec that unsets the state for a given index.
 // Returns an error index is out of bounds.
 func (vec *BitVec) Unset(index uint64) error {
+	// Check for out of bounds index
+	if index >= vec.Count {
+		return errors.Errorf("index too large for bitvec count (max: %v)", vec.Count)
+	}
+
 	// Acquire the mutex
 	vec.mu.Lock()
 	defer vec.mu.Unlock()
-
-	// Check for out of bounds index
-	if index >= vec.Count {
-		return errors.Errorf("index too large for BitVec Count (max: %v)", vec.Count)
-	}
 
 	// Get the start and end positions for the response state in the Data
 	start := (index * vec.Size) / 64
@@ -142,12 +143,12 @@ func (vec *BitVec) Unset(index uint64) error {
 func (vec *BitVec) Has(index, state uint64) (bool, error) {
 	// Check for out of bounds index
 	if index >= vec.Count {
-		return false, errors.Errorf("index too large for BitVec Count (max: %v)", vec.Count)
+		return false, errors.Errorf("index too large for bitvec count (max: %v)", vec.Count)
 	}
 
 	// Check for state value too large for BitVec
 	if state > vec.MaxState() {
-		return false, errors.Errorf("state too large for BitVec state (maxL %v)", vec.MaxState())
+		return false, errors.Errorf("state too large for bitvec state (max: %v)", vec.MaxState())
 	}
 
 	// Get the start and end positions for the response state in the Data
@@ -191,7 +192,7 @@ func (vec *BitVec) Has(index, state uint64) (bool, error) {
 func (vec *BitVec) State(index uint64) (uint64, error) {
 	// Check for out of bounds index
 	if index >= vec.Count {
-		return 0, errors.Errorf("index too large for BitVec Count (max: %v)", vec.Count)
+		return 0, errors.Errorf("index too large for bitvec count (max: %v)", vec.Count)
 	}
 
 	// Get the start and end positions for the response state in the Data
@@ -230,18 +231,21 @@ func (vec *BitVec) State(index uint64) (uint64, error) {
 	return value, nil
 }
 
-// GetIndexes is a method of BitVec that returns the slice of indexes matching the given state.
-// Returns an error if the index is out of bounds.
-func (vec *BitVec) GetIndexes(state uint64) ([]uint64, error) {
-	indexes := make([]uint64, 0)
+// Indexes is a method of BitVec that returns the slice of indexes matching the given state.
+// Returns an error if state value exceeds the maximum for the BitVec.
+func (vec *BitVec) Indexes(state uint64) ([]uint64, error) {
+	// Check for state value too large for BitVec
+	if state > vec.MaxState() {
+		return nil, errors.Errorf("state too large for bitvec state (max: %v)", vec.MaxState())
+	}
 
-	//Iterating over the BitVec to check for the state value
+	// Iterate over the BitVec and check each index for
+	// equality with state and append index if equal
+	indexes := make([]uint64, 0)
 	for i := uint64(0); i < vec.Count; i++ {
-		temp, err := vec.Has(i, state)
-		if err != nil {
-			return nil, err
-		}
-		if temp == true {
+		// Error from Has() can be ignored because max state has already been checked
+		// and the count will never overflow because it is bounded by the loop condition.
+		if exists, _ := vec.Has(i, state); exists {
 			indexes = append(indexes, i)
 		}
 	}
