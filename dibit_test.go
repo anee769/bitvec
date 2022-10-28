@@ -152,3 +152,29 @@ func TestDiBit_State(t *testing.T) {
 		assert.Equal(t, test.output, value)
 	}
 }
+
+func TestDiBit_GetIndexes(t *testing.T) {
+	tests := []struct {
+		count, state uint64
+		data, output []uint64
+	}{
+		{32, 3, []uint64{3027}, []uint64{27, 28, 31}},
+		{64, 3, []uint64{50, 195}, []uint64{29, 60, 63}},
+		{33, 1, []uint64{1059, 4611686018427387904}, []uint64{26, 32}},
+		{32, 0, []uint64{9223372036854775807}, []uint64{}},
+	}
+
+	for _, test := range tests {
+		vec := NewDiBit(test.count)
+		vec.Data = test.data
+		indexes, err2 := vec.GetIndexes(test.state)
+		if err2 != nil {
+			if test.state > vec.MaxState() {
+				assert.EqualError(t, err2, fmt.Sprintf("state too large for BitVec state (maxL %v)", vec.MaxState()))
+			} else {
+				assert.Nil(t, err2, "Unexpected Error")
+			}
+		}
+		assert.Equal(t, test.output, indexes)
+	}
+}
