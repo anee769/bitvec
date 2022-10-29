@@ -8,33 +8,33 @@ import (
 	"github.com/pkg/errors"
 )
 
-// STATESIZE is the size for a BitVec state.
+// STATESIZE is the size for a DiBit state.
 const (
 	STATESIZE = 2
 )
 
 // DiBit is a struct that maintains some number of responses
 type DiBit struct {
+	// mu is the thread safety mutex
+	mu sync.Mutex
+
 	// Count is the number of responses
 	Count uint64
 	// Data stores the responses according to their indices
 	Data []uint64
-	// mu is the thread safety mutex
-	mu sync.Mutex
-}
-
-// String implements the Stringer interface for BitVec
-func (vec *DiBit) String() string {
-	return fmt.Sprintf("[%v] %064b", vec.Count, vec.Data)
 }
 
 // NewDiBit is a constructor function for DiBit.
 func NewDiBit(count uint64) *DiBit {
 	return &DiBit{
-		Count: count,
-		Data:  make([]uint64, int(math.Ceil(float64(count*STATESIZE)/64))),
-		mu:    sync.Mutex{},
+		mu: sync.Mutex{}, Count: count,
+		Data: make([]uint64, int(math.Ceil(float64(count*STATESIZE)/64))),
 	}
+}
+
+// String implements the Stringer interface for DiBit
+func (vec *DiBit) String() string {
+	return fmt.Sprintf("[%v] %064b", vec.Count, vec.Data)
 }
 
 // MaxState is a method of DiBit that returns the maximum value for the state.
@@ -46,19 +46,19 @@ func (vec *DiBit) MaxState() uint64 {
 // Set is a method of DiBit that sets a given state at given index.
 // Returns an error if the index is out of bounds or if the state value exceeds the maximum for the DiBit.
 func (vec *DiBit) Set(index, state uint64) error {
+	// Check for out of bounds index
+	if index >= vec.Count {
+		return errors.Errorf("index too large for dibit count (max: %v)", vec.Count)
+	}
+
+	// Check for state value too large for DiBit
+	if state > vec.MaxState() {
+		return errors.Errorf("state too large for dibit state (max: %v)", vec.MaxState())
+	}
+
 	// Acquire the mutex
 	vec.mu.Lock()
 	defer vec.mu.Unlock()
-
-	// Check for out of bounds index
-	if index >= vec.Count {
-		return errors.Errorf("index too large for DiBit Count (max: %v)", vec.Count)
-	}
-
-	// Check for state value too large for BitVec
-	if state > vec.MaxState() {
-		return errors.Errorf("state too large for DiBit state (maxL %v)", vec.MaxState())
-	}
 
 	// Get the start position for the response state in the Data
 	start := (index * STATESIZE) / 64
@@ -75,14 +75,14 @@ func (vec *DiBit) Set(index, state uint64) error {
 // Unset is a method of DiBit that unsets the state for a given index.
 // Returns an error index is out of bounds.
 func (vec *DiBit) Unset(index uint64) error {
+	// Check for out of bounds index
+	if index >= vec.Count {
+		return errors.Errorf("index too large for dibit count (max: %v)", vec.Count)
+	}
+
 	// Acquire the mutex
 	vec.mu.Lock()
 	defer vec.mu.Unlock()
-
-	// Check for out of bounds index
-	if index >= vec.Count {
-		return errors.Errorf("index too large for DiBit Count (max: %v)", vec.Count)
-	}
 
 	// Get the start position for the response state in the Data
 	start := (index * STATESIZE) / 64
@@ -103,12 +103,12 @@ func (vec *DiBit) Unset(index uint64) error {
 func (vec *DiBit) Has(index, state uint64) (bool, error) {
 	// Check for out of bounds index
 	if index >= vec.Count {
-		return false, errors.Errorf("index too large for DiBit Count (max: %v)", vec.Count)
+		return false, errors.Errorf("index too large for dibit count (max: %v)", vec.Count)
 	}
 
-	// Check for state value too large for BitVec
+	// Check for state value too large for DiBit
 	if state > vec.MaxState() {
-		return false, errors.Errorf("state too large for DiBit state (maxL %v)", vec.MaxState())
+		return false, errors.Errorf("state too large for dibit state (max: %v)", vec.MaxState())
 	}
 
 	// Get the start position for the response state in the Data
@@ -131,7 +131,7 @@ func (vec *DiBit) Has(index, state uint64) (bool, error) {
 func (vec *DiBit) State(index uint64) (uint64, error) {
 	// Check for out of bounds index
 	if index >= vec.Count {
-		return 0, errors.Errorf("index too large for DiBit Count (max: %v)", vec.Count)
+		return 0, errors.Errorf("index too large for dibit count (max: %v)", vec.Count)
 	}
 
 	// Get the start position for the response state in the Data
@@ -149,18 +149,21 @@ func (vec *DiBit) State(index uint64) (uint64, error) {
 	return value, nil
 }
 
-// GetIndexes is a method of DiBit that returns the slice of indexes matching the given state.
-// Returns an error if the index is out of bounds.
-func (vec *DiBit) GetIndexes(state uint64) ([]uint64, error) {
-	indexes := make([]uint64, 0)
+// Indexes is a method of DiBit that returns the slice of indexes matching the given state.
+// Returns an error if state value exceeds the maximum for the DiBit.
+func (vec *DiBit) Indexes(state uint64) ([]uint64, error) {
+	// Check for state value too large for DiBit
+	if state > vec.MaxState() {
+		return nil, errors.Errorf("state too large for dibit state (max: %v)", vec.MaxState())
+	}
 
-	//Iterating over the BitVec to check for the state value
+	// Iterate over the DiBit and check each index for
+	// equality with state and append index if equal
+	indexes := make([]uint64, 0)
 	for i := uint64(0); i < vec.Count; i++ {
-		temp, err := vec.Has(i, state)
-		if err != nil {
-			return nil, err
-		}
-		if temp == true {
+		// Error from Has() can be ignored because max state has already been checked
+		// and the count will never overflow because it is bounded by the loop condition.
+		if exists, _ := vec.Has(i, state); exists {
 			indexes = append(indexes, i)
 		}
 	}
