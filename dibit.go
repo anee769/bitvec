@@ -8,10 +8,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// STATESIZE is the size for a DiBit state.
-const (
-	STATESIZE = 2
-)
+// DIBITSIZE is the size for a DiBit state.
+const DIBITSIZE = 2
 
 // DiBit is a struct that maintains some number of responses
 type DiBit struct {
@@ -28,7 +26,7 @@ type DiBit struct {
 func NewDiBit(count uint64) *DiBit {
 	return &DiBit{
 		mu: sync.Mutex{}, Count: count,
-		Data: make([]uint64, int(math.Ceil(float64(count*STATESIZE)/64))),
+		Data: make([]uint64, int(math.Ceil(float64(count*DIBITSIZE)/64))),
 	}
 }
 
@@ -40,7 +38,7 @@ func (vec *DiBit) String() string {
 // MaxState is a method of DiBit that returns the maximum value for the state.
 // It is calculated as 2^StateBits-1.
 func (vec *DiBit) MaxState() uint64 {
-	return 1<<STATESIZE - 1
+	return 1<<DIBITSIZE - 1
 }
 
 // Set is a method of DiBit that sets a given state at given index.
@@ -61,12 +59,12 @@ func (vec *DiBit) Set(index, state uint64) error {
 	defer vec.mu.Unlock()
 
 	// Get the start position for the response state in the Data
-	start := (index * STATESIZE) / 64
+	start := (index * DIBITSIZE) / 64
 
 	// Calculate the start bit position
-	startBit := (index * STATESIZE) % 64
+	startBit := (index * DIBITSIZE) % 64
 
-	temp := state << (64 - STATESIZE - startBit)
+	temp := state << (64 - DIBITSIZE - startBit)
 	vec.Data[start] |= temp
 
 	return nil
@@ -85,13 +83,13 @@ func (vec *DiBit) Unset(index uint64) error {
 	defer vec.mu.Unlock()
 
 	// Get the start position for the response state in the Data
-	start := (index * STATESIZE) / 64
+	start := (index * DIBITSIZE) / 64
 
 	// Calculate the start bit position
-	startBit := (index * STATESIZE) % 64
+	startBit := (index * DIBITSIZE) % 64
 
 	max := uint64(1<<64 - 1)
-	temp := vec.MaxState() << (64 - STATESIZE - startBit)
+	temp := vec.MaxState() << (64 - DIBITSIZE - startBit)
 	temp ^= max
 	vec.Data[start] &= temp
 
@@ -112,16 +110,16 @@ func (vec *DiBit) Has(index, state uint64) (bool, error) {
 	}
 
 	// Get the start position for the response state in the Data
-	start := (index * STATESIZE) / 64
+	start := (index * DIBITSIZE) / 64
 
 	// Calculate the start bit position
-	startBit := (index * STATESIZE) % 64
+	startBit := (index * DIBITSIZE) % 64
 
 	var value uint64
 
-	temp := vec.MaxState() << (64 - STATESIZE - startBit)
+	temp := vec.MaxState() << (64 - DIBITSIZE - startBit)
 	value = temp & vec.Data[start]
-	value >>= 64 - STATESIZE - startBit
+	value >>= 64 - DIBITSIZE - startBit
 
 	return value == state, nil
 }
@@ -135,16 +133,16 @@ func (vec *DiBit) State(index uint64) (uint64, error) {
 	}
 
 	// Get the start position for the response state in the Data
-	start := (index * STATESIZE) / 64
+	start := (index * DIBITSIZE) / 64
 
 	// Calculate the start bit position
-	startBit := (index * STATESIZE) % 64
+	startBit := (index * DIBITSIZE) % 64
 
 	var value uint64
 
-	temp := vec.MaxState() << (64 - STATESIZE - startBit)
+	temp := vec.MaxState() << (64 - DIBITSIZE - startBit)
 	value = temp & vec.Data[start]
-	value >>= 64 - STATESIZE - startBit
+	value >>= 64 - DIBITSIZE - startBit
 
 	return value, nil
 }
